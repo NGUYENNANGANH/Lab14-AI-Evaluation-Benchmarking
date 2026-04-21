@@ -21,6 +21,31 @@ class ExpertEvaluator:
 
 # MultiModelJudge đã được thay thế bằng LLMJudge thật (engine/llm_judge.py)
 
+
+def decide_release(v1_summary, v2_summary):
+    """
+    Auto-gate cho regression testing.
+    Điều kiện bắt buộc để APPROVE:
+    1) Delta Judge score > 0
+    2) V2 hit_rate > 0.8
+    3) V2 agreement_rate > 0.7
+    """
+    v1_metrics = v1_summary["metrics"]
+    v2_metrics = v2_summary["metrics"]
+
+    delta_score = v2_metrics["avg_score"] - v1_metrics["avg_score"]
+    hit_rate_ok = v2_metrics["hit_rate"] > 0.8
+    agreement_ok = v2_metrics["agreement_rate"] > 0.7
+
+    approved = delta_score > 0 and hit_rate_ok and agreement_ok
+
+    return {
+        "approved": approved,
+        "delta_score": delta_score,
+        "hit_rate_ok": hit_rate_ok,
+        "agreement_ok": agreement_ok,
+    }
+
 async def run_benchmark_with_results(agent_version: str):
     print(f"🚀 Khởi động Benchmark cho {agent_version}...")
 
