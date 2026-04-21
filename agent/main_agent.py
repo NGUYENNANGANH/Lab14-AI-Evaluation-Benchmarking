@@ -8,7 +8,7 @@ class MainAgent:
     def __init__(self, version="V1"):
         self.name = f"SupportAgent-{version}"
         self.version = version
-
+# update
     async def query(self, test_case: Dict) -> Dict:
         """
         Mô phỏng quy trình RAG: Retrieval -> Generation.
