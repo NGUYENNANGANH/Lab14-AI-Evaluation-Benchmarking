@@ -91,6 +91,14 @@ async def main():
         print("❌ Không thể chạy Benchmark. Kiểm tra lại data/golden_set.jsonl.")
         return
 
+    # Cờ mock phục vụ test gate: score tăng nhưng retrieval suy thoái.
+    # Bật bằng: $env:MOCK_V2_GATE_TEST='1'; python main.py
+    if os.getenv("MOCK_V2_GATE_TEST", "0") == "1":
+        v2_summary["metrics"]["avg_score"] = v1_summary["metrics"]["avg_score"] + 0.2
+        v2_summary["metrics"]["hit_rate"] = min(v1_summary["metrics"]["hit_rate"] - 0.2, 0.79)
+        v2_summary["metrics"]["agreement_rate"] = max(v2_summary["metrics"]["agreement_rate"], 0.8)
+        print("🧪 Đang dùng MOCK_V2_GATE_TEST: V2 score tăng nhưng hit_rate thấp để test gate.")
+
     print("\n📊 --- KẾT QUẢ SO SÁNH (REGRESSION) ---")
     delta = v2_summary["metrics"]["avg_score"] - v1_summary["metrics"]["avg_score"]
     print(f"V1 Score: {v1_summary['metrics']['avg_score']}")
