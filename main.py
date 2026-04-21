@@ -114,7 +114,7 @@ async def main():
     with open("reports/benchmark_results.json", "w", encoding="utf-8") as f:
         json.dump(v2_results, f, ensure_ascii=False, indent=2)
 
-    if delta > 0:
+    if gate_result["approved"]:
         print("✅ QUYẾT ĐỊNH: CHẤP NHẬN BẢN CẬP NHẬT (APPROVE)")
     else:
         print("❌ QUYẾT ĐỊNH: TỪ CHỐI (BLOCK RELEASE)")
