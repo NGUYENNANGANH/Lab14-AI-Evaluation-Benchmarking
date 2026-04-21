@@ -36,7 +36,9 @@ async def run_benchmark_with_results(agent_version: str):
         return None, None
 
     runner = BenchmarkRunner(MainAgent(), ExpertEvaluator(), LLMJudge())
+    pipeline_start = time.perf_counter()
     results = await runner.run_all(dataset)
+    pipeline_time = time.perf_counter() - pipeline_start
 
     total = len(results)
     summary = {
@@ -45,7 +47,8 @@ async def run_benchmark_with_results(agent_version: str):
             "avg_score": sum(r["judge"]["final_score"] for r in results) / total,
             "hit_rate": sum(r["ragas"]["retrieval"]["hit_rate"] for r in results) / total,
             "agreement_rate": sum(r["judge"]["agreement_rate"] for r in results) / total
-        }
+        },
+        "performance": runner.get_performance_summary(total, pipeline_time)
     }
     return results, summary
 

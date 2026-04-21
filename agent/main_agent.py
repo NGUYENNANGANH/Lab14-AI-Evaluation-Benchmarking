@@ -27,7 +27,10 @@ class MainAgent:
             ],
             "metadata": {
                 "model": "gpt-4o-mini",
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
                 "tokens_used": 150,
+                "cost_usd": 100 * (0.15 / 1_000_000) + 50 * (0.60 / 1_000_000),
                 "sources": ["policy_handbook.pdf"]
             }
         }
