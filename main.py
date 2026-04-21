@@ -100,10 +100,13 @@ async def main():
         print("🧪 Đang dùng MOCK_V2_GATE_TEST: V2 score tăng nhưng hit_rate thấp để test gate.")
 
     print("\n📊 --- KẾT QUẢ SO SÁNH (REGRESSION) ---")
-    delta = v2_summary["metrics"]["avg_score"] - v1_summary["metrics"]["avg_score"]
+    gate_result = decide_release(v1_summary, v2_summary)
+    delta = gate_result["delta_score"]
     print(f"V1 Score: {v1_summary['metrics']['avg_score']}")
     print(f"V2 Score: {v2_summary['metrics']['avg_score']}")
     print(f"Delta: {'+' if delta >= 0 else ''}{delta:.2f}")
+    print(f"V2 Hit Rate: {v2_summary['metrics']['hit_rate']:.2f} (yêu cầu > 0.8: {'✅' if gate_result['hit_rate_ok'] else '❌'})")
+    print(f"V2 Agreement Rate: {v2_summary['metrics']['agreement_rate']:.2f} (yêu cầu > 0.7: {'✅' if gate_result['agreement_ok'] else '❌'})")
 
     os.makedirs("reports", exist_ok=True)
     with open("reports/summary.json", "w", encoding="utf-8") as f:
