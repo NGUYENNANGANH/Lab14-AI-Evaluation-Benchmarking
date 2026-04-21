@@ -43,11 +43,11 @@ Trả về KẾT QUẢ duy nhất theo định dạng JSON (KHÔNG kèm markdown
 class LLMJudge:
     """
     Multi-Judge Consensus Engine.
-    Sử dụng ít nhất 2 model LLM để chấm điểm, tính toán độ đồng thuận,
-    và tự động xử lý xung đột khi 2 Judge cho điểm chênh lệch lớn.
+    Sử dụng 2 model OpenAI khác nhau (gpt-4o-mini và gpt-4o) để chấm điểm,
+    tính toán độ đồng thuận, và tự động xử lý xung đột khi chênh lệch lớn.
     """
 
-    def __init__(self, model_a: str = "gpt-4o-mini", model_b: str = "claude-3-5-haiku-20241022"):
+    def __init__(self, model_a: str = "gpt-4o-mini", model_b: str = "gpt-4o"):
         self.model_a = model_a
         self.model_b = model_b
         self.conflict_threshold = 1  # Ngưỡng chênh lệch kích hoạt tie-breaker
@@ -58,17 +58,17 @@ class LLMJudge:
         self.total_tokens = 0
 
     # ========================================================================
-    # Individual Judge Calls
+    # Judge Call (dùng chung cho cả 2 model)
     # ========================================================================
 
-    async def _call_openai_judge(self, prompt: str) -> Dict[str, Any]:
+    async def _call_judge(self, prompt: str, model: str) -> Dict[str, Any]:
         """Gọi OpenAI model để chấm điểm."""
         import openai
 
         client = openai.AsyncOpenAI()
         try:
             response = await client.chat.completions.create(
-                model=self.model_a,
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0,
@@ -81,54 +81,15 @@ class LLMJudge:
             result["accuracy"] = max(1, min(5, int(result.get("accuracy", 3))))
             result["tone"] = max(1, min(5, int(result.get("tone", 3))))
             result["tokens_used"] = tokens
-            result["model"] = self.model_a
+            result["model"] = model
             return result
 
         except Exception as e:
-            print(f"  ⚠️ OpenAI Judge error: {e}")
+            print(f"  ⚠️ Judge ({model}) error: {e}")
             return {
                 "accuracy": 3, "tone": 3,
                 "reasoning": f"Error: {str(e)}",
-                "tokens_used": 0, "model": self.model_a
-            }
-
-    async def _call_anthropic_judge(self, prompt: str) -> Dict[str, Any]:
-        """Gọi Anthropic Claude model để chấm điểm."""
-        import anthropic
-
-        client = anthropic.AsyncAnthropic()
-        try:
-            response = await client.messages.create(
-                model=self.model_b,
-                max_tokens=300,
-                temperature=0,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            content = response.content[0].text
-
-            # Claude đôi khi wrap JSON trong markdown code blocks
-            if "```" in content:
-                json_str = content.split("```")[1]
-                if json_str.startswith("json"):
-                    json_str = json_str[4:]
-                result = json.loads(json_str.strip())
-            else:
-                result = json.loads(content)
-
-            tokens = response.usage.input_tokens + response.usage.output_tokens
-
-            result["accuracy"] = max(1, min(5, int(result.get("accuracy", 3))))
-            result["tone"] = max(1, min(5, int(result.get("tone", 3))))
-            result["tokens_used"] = tokens
-            result["model"] = self.model_b
-            return result
-
-        except Exception as e:
-            print(f"  ⚠️ Anthropic Judge error: {e}")
-            return {
-                "accuracy": 3, "tone": 3,
-                "reasoning": f"Error: {str(e)}",
-                "tokens_used": 0, "model": self.model_b
+                "tokens_used": 0, "model": model
             }
 
     # ========================================================================
@@ -138,7 +99,7 @@ class LLMJudge:
     async def _resolve_conflict(self, prompt: str, score_a: Dict, score_b: Dict) -> Dict[str, Any]:
         """
         Tie-breaker: Khi 2 Judge xung đột (chênh > 1 điểm accuracy),
-        gọi Judge thứ 3 với context của 2 Judge trước, lấy median.
+        gọi Judge thứ 3 (gpt-4o) với context của 2 Judge trước, lấy median.
         """
         diff = abs(score_a["accuracy"] - score_b["accuracy"])
         print(f"  ⚠️ XUNG ĐỘT: {score_a['model']}={score_a['accuracy']}, "
@@ -152,13 +113,14 @@ LƯU Ý: Hai Judge trước đã chấm điểm như sau:
 
 Hãy phân tích cả hai quan điểm và đưa ra đánh giá công tâm cuối cùng."""
 
-        tie_result = await self._call_openai_judge(tie_prompt)
+        # Dùng gpt-4o làm tie-breaker
+        tie_result = await self._call_judge(tie_prompt, self.model_b)
 
         # Lấy median của 3 điểm
         acc_scores = sorted([score_a["accuracy"], score_b["accuracy"], tie_result["accuracy"]])
         tone_scores = sorted([score_a["tone"], score_b["tone"], tie_result["tone"]])
 
-        print(f"  ✅ TIE-BREAKER: chấm accuracy={tie_result['accuracy']} "
+        print(f"  ✅ TIE-BREAKER ({self.model_b}): chấm accuracy={tie_result['accuracy']} "
               f"→ Median={acc_scores[1]}")
 
         return {
@@ -174,7 +136,7 @@ Hãy phân tích cả hai quan điểm và đưa ra đánh giá công tâm cuố
 
     async def evaluate_multi_judge(self, question: str, answer: str, ground_truth: str) -> Dict[str, Any]:
         """
-        Multi-Judge Consensus: Gọi 2 model Judge song song,
+        Multi-Judge Consensus: Gọi 2 model (gpt-4o-mini và gpt-4o) song song,
         tính Agreement Rate, và xử lý xung đột tự động.
         """
         prompt = JUDGE_PROMPT.format(
@@ -183,10 +145,10 @@ Hãy phân tích cả hai quan điểm và đưa ra đánh giá công tâm cuố
             ground_truth=ground_truth
         )
 
-        # 1. Gọi 2 Judge song song
+        # 1. Gọi 2 model song song
         score_a, score_b = await asyncio.gather(
-            self._call_openai_judge(prompt),
-            self._call_anthropic_judge(prompt)
+            self._call_judge(prompt, self.model_a),
+            self._call_judge(prompt, self.model_b)
         )
 
         # 2. Tính Agreement Rate (1.0 = đồng ý hoàn toàn, 0.0 = bất đồng hoàn toàn)
